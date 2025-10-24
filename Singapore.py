@@ -3,73 +3,88 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import datetime
+import requests
+from io import StringIO
 
 st.write("Working directory:", os.getcwd())
 st.write("Root files:", os.listdir('.'))
 
 st.title("Singapore Property Price Tracker – Last Updated: {}".format(
-    datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    datetime.datetime.now().strftime("%Y-%m-d %H:%M")
 ))
 
 with st.sidebar:
     st.header("Filters")
-    property_type = st.selectbox("Property type", ["All", "HDB Resale", "Private Residential"])
-    region = st.selectbox("Region / Planning Area", ["All", "Central", "East", "West", "North", "North-East"])
-    last_n_months = st.slider("Last N months", min_value=1, max_value=60, value=12)
+    property_type = st.selectbox("Property type", ["All", "HDB Resale"])
+    region = st.selectbox("Region / Town", ["All"])  # you can expand these
+    last_n_months = st.slider("Last N months", min_value=1, max_value=120, value=12)
 
 @st.cache_data
-def load_data(filepath="data/property_prices_sg.csv"):
-    if not os.path.exists(filepath):
-        st.error(f"Data file not found at path: {filepath}")
-        st.stop()
+def load_data():
+    # Try live dataset from HDB open data (Resale Flat Prices)
+    url = "https://data.gov.sg/dataset/resale-flat-prices-based-on-registration-date-from-jan-2017-onwards"  # placeholder; fetch directly below
+    csv_url = "https://data.gov.sg/dataset/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/download"  # this is approximate
     try:
-        df = pd.read_csv(filepath, parse_dates=["date"])
-    except pd.errors.EmptyDataError:
-        st.error(f"The data file at {filepath} is empty or malformed.")
-        st.stop()
+        resp = requests.get(csv_url)
+        resp.raise_for_status()
+        df = pd.read_csv(StringIO(resp.text), parse_dates=["month"])
+        # rename columns for consistency
+        df = df.rename(columns={"month":"date", "town":"region", "flat_type":"property_type", "resale_price":"price"})
+        return df
     except Exception as e:
-        st.error(f"Error reading data file: {e}")
-        st.stop()
-    return df
+        # fallback to local file
+        filepath = "data/property_prices_sg.csv"
+        if not os.path.exists(filepath):
+            st.error(f"Data file not found at path: {filepath}")
+            st.stop()
+        try:
+            df = pd.read_csv(filepath, parse_dates=["date"])
+        except pd.errors.EmptyDataError:
+            st.error(f"The data file at {filepath} is empty or malformed.")
+            st.stop()
+        except Exception as ex:
+            st.error(f"Error reading data file: {ex}")
+            st.stop()
+        return df
 
 df = load_data()
 
-# Now ensure there are the expected columns
-expected_cols = {"date", "property_type", "region", "price_per_sqm", "transaction_id"}
-if not expected_cols.issubset(set(df.columns)):
-    st.error(f"Data file missing expected columns. Found columns: {list(df.columns)}")
+if df.empty:
+    st.error("Loaded dataset is empty—no rows to work with.")
     st.stop()
 
-filtered = df.copy()
+st.write("Loaded data sample:", df.head())
+
+# Filter by property type
 if property_type != "All":
-    filtered = filtered[filtered["property_type"] == property_type]
+    df = df[df["property_type"].str.contains(property_type, case=False, na=False)]
+
+# Filter by region (if you expand list later)
 if region != "All":
-    filtered = filtered[filtered["region"] == region]
+    df = df[df["region"] == region]
 
+# Filter by date range
 cutoff = pd.Timestamp.now() - pd.DateOffset(months=last_n_months)
-filtered = filtered[filtered["date"] >= cutoff]
+df = df[df["date"] >= cutoff]
 
-if filtered.empty:
-    st.warning("No data available after applying filters. Please change filters or wait for updated data.")
-
+if df.empty:
+    st.warning("No data available after applying filters — try widening your filters.")
 else:
-    avg_price = filtered.groupby("date")["price_per_sqm"].mean().reset_index()
-    fig1 = px.line(avg_price, x="date", y="price_per_sqm", title="Average Price (S$/m²) over Time")
+    # Chart: price distribution / time series
+    fig1 = px.line(df.groupby("date")["price"].mean().reset_index(), x="date", y="price",
+                   title="Average Resale Price Over Time")
     st.plotly_chart(fig1, use_container_width=True)
 
-    vol = filtered.groupby("date")["transaction_id"].count().reset_index().rename(columns={"transaction_id": "volume"})
-    fig2 = px.bar(vol, x="date", y="volume", title="Transaction Volume Over Time")
-    st.plotly_chart(fig2, use_container_width=True)
-
-    summary = filtered.groupby("region").agg(
-        avg_price=("price_per_sqm", "mean"),
-        change_3m=("price_per_sqm", lambda x: (x.iloc[-1] - x.iloc[0]) / x.iloc[0] if len(x) > 1 else None)
+    # Summary
+    summary = df.groupby("region").agg(
+        avg_price=("price", "mean"),
+        count=("price", "count")
     ).reset_index().sort_values("avg_price", ascending=False)
     st.subheader("Region Summary")
     st.dataframe(summary)
 
 st.markdown(f"""
 ---
-*Data source: Open Data Singapore / URA (or your chosen data provider)*  
-_Last updated: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}_  
+*Data source: Housing & Development Board (HDB) via data.gov.sg*  
+_Last updated: {datetime.datetime.now().strftime("%Y-%m-d %H:%M")}_  
 """)
