@@ -1,28 +1,19 @@
-# Specify the Streamlit version (pin it if you need a specific one)
-streamlit==1.28.0
-
-# Data processing / analytics
-pandas>=2.0.0
-numpy>=1.25.0
-
-# Visualisation / charting
-plotly>=6.0.0
-altair>=5.0.0
-pydeck>=0.9.0
-
-# Mapping (if you include map heat-maps)
-geopandas>=0.13.0
-folium>=0.15.0
-
-# Database / data handling (if you use SQL or ORMs)
-sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0
-
-# Scheduling / job / automation libraries (if your backend script runs updates)
-apscheduler>=3.10.0
-requests>=2.30.0
-
-# Optional: if you use caching, logs or external APIs
-cachetools>=5.5.0
-python-dotenv>=1.0.0
-
+-------------------------------------------------------
+| Header: Site name + nav (Home / Dashboard / Data / About) |
+-------------------------------------------------------
+| Hero section: “Singapore Property Price Tracker – Last Updated: [date]” |
+-------------------------------------------------------
+| [Filter bar] Region: [dropdown] | Property type: [dropdown] | Time-frame: [dropdown] |
+-------------------------------------------------------
+| Row 1: Two big charts side by side                 |
+|   • Chart A: Average Price (S$/sqft) over time     |
+|   • Chart B: Transaction Volume over time           |
+-------------------------------------------------------
+| Row 2: Map view of Singapore regions (color-coded by price) |
+-------------------------------------------------------
+| Row 3: Table or cards:  Top 5 regions – show region name, latest price, % change |
+-------------------------------------------------------
+| Row 4: Commentary / insights: “What to watch”, “Recent trend” |
+-------------------------------------------------------
+| Footer: About | Data source acknowledgement | AdSense ad unit |
+-------------------------------------------------------
